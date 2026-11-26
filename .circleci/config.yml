@@ -11,20 +11,22 @@ jobs:
           command: |
             docker run -d --privileged --name redroid -p 5555:5555 redroid/redroid:11.0.0-latest && echo REDROID_CONTAINER_STARTED || echo REDROID_RUN_FAILED
             sudo apt-get update -qq && sudo apt-get install -y -qq adb >/dev/null 2>&1; adb version | head -1
-            for i in 1 2 3 4 5 6; do
+            for i in 1 2 3 4 5 6 7 8 9; do
               sleep 20
               echo "== wait $((i*20))s =="
-              adb connect localhost:5555 2>&1
-              BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+              adb connect localhost:5555 || true
+              BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
               echo "boot_completed=$BOOT"
               if [ "$BOOT" = "1" ]; then break; fi
             done
-            adb devices -l
-            echo "== android version =="; adb shell getprop ro.build.version.release 2>&1
-            echo "== abi =="; adb shell getprop ro.product.cpu.abi 2>&1
+            adb devices -l || true
+            echo "== android version =="; adb shell getprop ro.build.version.release || true
+            echo "== abi =="; adb shell getprop ro.product.cpu.abi || true
             echo "== screencap =="
             adb exec-out screencap -p > /tmp/screen.png 2>/dev/null && ls -l /tmp/screen.png && echo SCREENCAP_OK || echo SCREENCAP_FAILED
-            echo "== binder in container =="; docker exec redroid ls -l /dev/binder 2>&1 | head -5
+            echo "== container status =="; docker ps -a --filter name=redroid
+            echo "== redroid processes =="; docker exec redroid ps -ef 2>&1 | head -15 || true
+            echo PROBE_DONE
 workflows:
   probe:
     jobs:
