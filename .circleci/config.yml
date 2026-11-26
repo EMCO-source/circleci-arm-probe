@@ -1,0 +1,41 @@
+version: 2.1
+jobs:
+  arm-probe:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: arm.medium
+    steps:
+      - checkout
+      - run:
+          name: Probe CPU, KVM, binder
+          command: |
+            echo "== arch =="; uname -m; uname -a
+            echo "== cpu =="; lscpu | sed -n '1,12p'
+            echo "== kvm =="; ls -l /dev/kvm || echo NO_KVM
+            echo "== binder/ashmem nodes =="; ls -l /dev/binder /dev/ashmem || echo NO_BINDER_ASHMEM_NODES
+            echo "== modprobe binder =="; sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" && echo BINDER_OK || echo MODPROBE_BINDER_FAILED
+            echo "== modprobe ashmem =="; sudo modprobe ashmem_linux && echo ASHMEM_OK || echo MODPROBE_ASHMEM_FAILED
+            echo "== binderfs =="; grep -i binder /proc/filesystems || echo NO_BINDERFS
+            echo "== docker =="; docker version --format '{{.Server.Version}}'
+      - run:
+          name: Redroid start attempt
+          command: |
+            docker run -d --privileged --name redroid -p 5555:5555 redroid/redroid:11.0.0-latest && echo REDROID_CONTAINER_STARTED || echo REDROID_RUN_FAILED
+            sleep 30
+            docker ps -a
+            echo "== redroid logs =="
+            docker logs redroid 2>&1 | tail -30
+      - run:
+          name: Public tunnel reachability
+          command: |
+            curl -sL -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 && chmod +x /tmp/cloudflared
+            nohup python3 -m http.server 8080 >/dev/null 2>&1 &
+            timeout 60 /tmp/cloudflared tunnel --url http://localhost:8080 --no-autoupdate > /tmp/tunnel.log 2>&1 &
+            sleep 25
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/tunnel.log | head -1)
+            echo "TUNNEL_URL=$URL"
+            if [ -n "$URL" ]; then curl -s -o /dev/null -w "edge fetch of tunnel URL: HTTP %{http_code}\n" "$URL"; fi
+workflows:
+  probe:
+    jobs:
+      - arm-probe
