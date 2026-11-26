@@ -7,9 +7,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Redroid boot verification
+          name: Redroid 13 boot verification
           command: |
-            docker run -d --privileged --name redroid -p 5555:5555 redroid/redroid:11.0.0-latest && echo REDROID_CONTAINER_STARTED || echo REDROID_RUN_FAILED
+            docker run -d --privileged --name redroid -p 5555:5555 redroid/redroid:13.0.0-latest && echo REDROID_CONTAINER_STARTED || echo REDROID_RUN_FAILED
             sudo apt-get update -qq && sudo apt-get install -y -qq adb >/dev/null 2>&1; adb version | head -1
             for i in 1 2 3 4 5 6 7 8 9; do
               sleep 20
@@ -25,7 +25,7 @@ jobs:
             echo "== screencap =="
             adb exec-out screencap -p > /tmp/screen.png 2>/dev/null && ls -l /tmp/screen.png && echo SCREENCAP_OK || echo SCREENCAP_FAILED
             echo "== container status =="; docker ps -a --filter name=redroid
-            echo "== redroid processes =="; docker exec redroid ps -ef 2>&1 | head -15 || true
+            echo "== crash log =="; docker exec redroid logcat -d -b crash -t 20 2>&1 | tail -25 || true
             echo PROBE_DONE
 workflows:
   probe:
